@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退職スマイル 商談AIスコアリング｜録音→100点採点</title>
+<style>
+  :root{
+    --bg:#0e1410; --panel:#15201a; --panel2:#1b2a22; --line:#2a3b30;
+    --txt:#e8f1ea; --sub:#9fb3a6; --mint:#37e0a0; --mint-d:#1f8f66;
+    --warn:#ffb454; --bad:#ff6b6b; --good:#37e0a0; --blue:#5bb0ff; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;font-size:15px;line-height:1.65}
+  button{font-family:inherit;cursor:pointer}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 70px}
+  header{display:flex;align-items:center;gap:10px;padding:6px 2px 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  header .logo{font-size:22px}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  header .tag{margin-left:auto;font-size:12px;color:var(--sub);border:1px solid var(--line);padding:3px 9px;border-radius:999px}
+
+  nav.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  nav.tabs button{flex:1;min-width:110px;background:var(--panel2);border:1px solid var(--line);color:var(--sub);border-radius:12px;padding:10px;font-weight:700;font-size:13.5px}
+  nav.tabs button.sel{background:var(--mint);color:#062014;border-color:var(--mint)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 4px;color:var(--mint);letter-spacing:.04em}
+  .card .sub{font-size:12px;color:var(--sub);margin:0 0 10px}
+  label{font-size:12px;color:var(--sub);display:block;margin-bottom:4px}
+  input[type=text],input[type=date],input[type=password],select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--mint-d)}
+  textarea{resize:vertical}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row > div{flex:1;min-width:150px}
+  .hint{font-size:11px;color:var(--sub);margin-top:4px}
+
+  .btn{background:var(--mint);color:#062014;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--mint-d)}
+  .btn.small{padding:6px 12px;font-size:12.5px}
+  .btn.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+
+  #transcript{min-height:220px;font-size:13.5px;line-height:1.6}
+  .filerow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .filerow input[type=file]{display:none}
+  .charcount{font-size:11px;color:var(--sub);text-align:right;margin-top:4px}
+
+  .progressWrap{margin-top:10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px}
+  .pbar{height:6px;background:var(--line);border-radius:4px;margin-top:6px;overflow:hidden}
+  .pbar > div{height:100%;background:var(--mint);width:0%;transition:width .2s}
+
+  .scoreBig{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .scoreBig .num{font-size:44px;font-weight:800;color:var(--mint)}
+  .scoreBig .num small{font-size:18px;color:var(--sub);font-weight:600}
+  .scoreBig .bars{flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px}
+  .catbar{display:flex;align-items:center;gap:8px;font-size:12px}
+  .catbar .lbl{width:150px;color:var(--sub);flex:none}
+  .catbar .track{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+  .catbar .track > div{height:100%;background:var(--mint)}
+  .catbar .val{width:52px;text-align:right;flex:none;color:var(--txt)}
+
+  .alertBox{border:1px solid var(--bad);background:rgba(255,107,107,.1);color:var(--bad);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
+
+  .catSection{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .catSection .head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--panel2);cursor:pointer}
+  .catSection .head .name{font-weight:700;font-size:14px;flex:1}
+  .catSection .head .sc{font-weight:800;color:var(--mint)}
+  .catSection .head .chev{transition:transform .15s;color:var(--sub)}
+  .catSection.open .head .chev{transform:rotate(90deg)}
+  .catSection .body{display:none;padding:12px 14px}
+  .catSection.open .body{display:block}
+  .catSummary{font-size:13px;color:var(--sub);background:var(--panel2);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+  .scoreItem{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#101a14}
+  .scoreItem .top{display:flex;align-items:baseline;gap:8px}
+  .scoreItem .iname{font-weight:700;font-size:13.5px;flex:1}
+  .scoreItem .isc{font-weight:800;font-size:14px;color:var(--mint)}
+  .scoreItem .isc.zero{color:var(--bad)}
+  .scoreItem .fb{font-size:13px;margin-top:6px}
+  .scoreItem .ts{display:inline-block;font-size:11px;color:var(--blue);background:rgba(91,176,255,.12);border-radius:6px;padding:2px 7px;margin-top:6px}
+  .scoreItem .impr{font-size:12.5px;color:var(--sub);margin-top:6px;border-left:2px solid var(--mint-d);padding-left:8px}
+  .scoreItem .impr b{color:var(--mint)}
+
+  .noteBox{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;margin-top:10px}
+  .noteBox h3{font-size:12.5px;color:var(--mint);margin:0 0 6px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  table th,table td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+  table th{color:var(--sub);font-weight:600;font-size:12px}
+  table tr:hover{background:var(--panel2)}
+  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+
+  .resultTag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .resultTag.win{color:var(--good);border-color:var(--good)}
+  .resultTag.lose{color:var(--bad);border-color:var(--bad)}
+  .resultTag.pend{color:var(--sub)}
+
+  .muted{color:var(--sub);font-size:12px}
+  .hideme{display:none!important}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#062014;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  @media print{
+    body{background:#fff;color:#000}.wrap{padding:0}
+    .no-print{display:none!important}
+    .catSection .body{display:block!important}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="logo">🎯</span>
+    <h1>退職スマイル 商談AIスコアリング</h1>
+    <span class="tag">録音を聞いて100点採点 / Claude API</span>
+  </header>
+
+  <nav class="tabs no-print">
+    <button class="sel" data-tab="score">📝 採点する</button>
+    <button data-tab="history">🗂 履歴</button>
+    <button data-tab="dash">📊 ダッシュボード</button>
+    <button data-tab="settings">⚙️ 設定</button>
+  </nav>
+
+  <!-- ===== 採点する ===== -->
+  <section id="tab-score">
+    <div class="card">
+      <h2>基本情報</h2>
+      <div class="row">
+        <div><label>営業担当</label><input type="text" id="f_rep" placeholder="氏名"></div>
+        <div><label>顧客名（任意・匿名可）</label><input type="text" id="f_customer" placeholder="顧客名 / 匿名可"></div>
+        <div><label>商談日</label><input type="date" id="f_date"></div>
+        <div><label>商談結果</label>
+          <select id="f_result">
+            <option value="">未定・未記入</option>
+            <option>成約</option>
+            <option>成約→CO</option>
+            <option>検討</option>
+            <option>失注</option>
+            <option>対象外</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>商談の文字起こし</h2>
+      <p class="sub">Plaudの文字起こしをコピー貼り付け／Zoomの文字起こし(.vtt/.srt/.txt)をアップロード／文字起こしが無い録音・録画は下の音声アップロードで自動文字起こし（時間がかかります）。</p>
+      <textarea id="transcript" placeholder="ここに文字起こしを貼り付け（[00:12:34] のようなタイムスタンプがあればそのまま含めてOK）"></textarea>
+      <div class="charcount"><span id="charcount">0</span> 文字 / タイムスタンプ検出: <span id="tsdetect">-</span></div>
+      <div class="filerow">
+        <button class="btn ghost small" id="btnLoadFile">📄 文字起こしファイルを読み込む(.txt/.vtt/.srt)</button>
+        <input type="file" id="fileTranscript" accept=".txt,.vtt,.srt">
+        <button class="btn ghost small" id="btnLoadAudio">🎙 音声/動画から自動文字起こし(フォールバック)</button>
+        <input type="file" id="fileAudio" accept="audio/*,video/*">
+        <button class="btn ghost small" id="btnSample">🧪 サンプル文字起こしを入れる</button>
+      </div>
+      <div id="asrProgress" class="progressWrap hideme">
+        <div id="asrStatus">準備中…</div>
+        <div class="pbar"><div id="asrBar"></div></div>
+        <div class="hint">初回はモデル(数十〜数百MB)のダウンロードが入ります。ブラウザ内で完結し、音声は外部送信されません。長い録音ほど時間がかかります。</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn" id="btnScore" style="width:100%;padding:14px;font-size:15px">🎯 AIで採点する（100点満点）</button>
+      <div id="scoreLoading" class="hint hideme" style="text-align:center;margin-top:8px"><span class="spin"></span>AIが採点中です…（30秒〜2分程度）</div>
+      <div id="scoreError" class="alertBox hideme"></div>
+    </div>
+
+    <div id="resultWrap" class="hideme"></div>
+  </section>
+
+  <!-- ===== 履歴 ===== -->
+  <section id="tab-history" class="hideme">
+    <div class="card">
+      <h2>採点履歴</h2>
+      <p class="sub">保存した商談はこの端末のブラウザ内(localStorage)に残ります。クリックで詳細を再表示します。</p>
+      <div id="historyEmpty" class="muted">まだ履歴がありません。「採点する」タブでスコアを保存すると、ここに一覧されます。</div>
+      <table id="historyTable" class="hideme">
+        <thead><tr><th>日付</th><th>営業</th><th>顧客</th><th>結果</th><th class="num">合計</th><th class="num">②ヒアリング</th><th class="num">⑤クロージング</th><th></th></tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+    <div id="historyDetail"></div>
+  </section>
+
+  <!-- ===== ダッシュボード ===== -->
+  <section id="tab-dash" class="hideme">
+    <div class="card">
+      <h2>②ヒアリング深度 × 成約率</h2>
+      <p class="sub">ヒアリング（特に金額の具体化・不安の言語化）が浅い商談は、クロージングで「検討します」に逃げられる構造。スコアが溜まってきたら教育の優先順位をここで判断する。</p>
+      <div id="dashHearing" class="muted">履歴が3件以上たまるとクロス集計が表示されます。</div>
+    </div>
+    <div class="card">
+      <h2>営業担当別 平均スコア</h2>
+      <div id="dashRep" class="muted">履歴がありません。</div>
+    </div>
+    <div class="card">
+      <h2>カテゴリ別 平均スコア推移</h2>
+      <div id="dashCat" class="muted">履歴がありません。</div>
+    </div>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section id="tab-settings" class="hideme">
+    <div class="card">
+      <h2>採点AIの選択</h2>
+      <p class="sub">Claude（高精度・従量課金）／ Gemini（Google AI Studioの無料枠で利用可）から選べます。</p>
+      <select id="s_provider">
+        <option value="gemini">Gemini（無料枠あり）</option>
+        <option value="claude">Claude（高精度・有料）</option>
+      </select>
+    </div>
+
+    <div class="card" id="providerCardGemini">
+      <h2>Gemini APIキー</h2>
+      <p class="sub">この端末のブラウザ内(localStorage)にのみ保存されます。サーバーには送信されません。</p>
+      <input type="password" id="s_gemini_apikey" placeholder="AIza...">
+      <div class="hint">未取得の場合は <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--blue)">aistudio.google.com/apikey</a> で無料発行できます。無料枠には1分あたり／1日あたりのリクエスト数上限があります（モデルにより異なる。詳細はAI Studioで確認）。</div>
+      <div class="row" style="margin-top:10px">
+        <div><label>モデル</label>
+          <select id="s_gemini_model">
+            <option value="gemini-2.5-flash">gemini-2.5-flash（推奨）</option>
+            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite（より高速・軽量）</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="providerCardClaude">
+      <h2>Claude APIキー</h2>
+      <p class="sub">この端末のブラウザ内(localStorage)にのみ保存されます。サーバーには送信されません。</p>
+      <input type="password" id="s_apikey" placeholder="sk-ant-...">
+      <div class="hint">未取得の場合は console.anthropic.com でAPIキーを発行してください。</div>
+      <div class="row" style="margin-top:10px">
+        <div><label>モデル</label>
+          <select id="s_model">
+            <option value="claude-opus-4-8">Claude Opus 4.8（推奨・高精度）</option>
+            <option value="claude-sonnet-5">Claude Sonnet 5（高速・低コスト）</option>
+          </select>
+        </div>
+        <div><label>思考の深さ</label>
+          <select id="s_effort">
+            <option value="high">high（推奨）</option>
+            <option value="medium">medium（速さ優先）</option>
+            <option value="xhigh">xhigh（最重要案件のみ）</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>データ管理</h2>
+      <button class="btn danger" id="btnClearHistory">履歴を全削除</button>
+    </div>
+    <button class="btn" id="btnSaveSettings">設定を保存</button>
+  </section>
+
+  <div class="muted no-print" style="text-align:center;margin-top:20px">商談内容は入力すると選択したAI（Claude または Gemini）に送信されます。個人情報・機密情報の取り扱いにご注意ください。</div>
+</div>
+
+<script type="module">
+/* =================== ルーブリック定義（採点基準の唯一の正） =================== */
+const RUBRIC = [
+  { key:'opening', name:'① 冒頭設計・主導権', max:10, items:[
+    { key:'agenda', name:'アジェンダ提示', max:4, desc:'「今日は〇分で、現状確認→受給可能性→進め方の順で話します」と冒頭で流れを握れているか' },
+    { key:'rapport', name:'ラポール', max:3, desc:'相手の状況（退職検討中・在職中・すでに退職）への共感が最初の2〜3分で入っているか' },
+    { key:'initiative', name:'主導権', max:3, desc:'相手の質問に振り回されず、順序をコントロールできているか' }
+  ]},
+  { key:'hearing', name:'② ヒアリング深度', max:25, note:'※最重要', items:[
+    { key:'fact_check', name:'事実確認', max:8, desc:'在籍状況・雇用保険加入期間・退職理由・傷病の有無など、受給判定に必要な情報を漏れなく取れているか' },
+    { key:'emotion_dig', name:'感情の掘り下げ', max:8, desc:'「なぜ辞めたいのか」「辞めた後の不安は何か」まで聞けているか。事実だけ聞いて終わっていないか' },
+    { key:'amount_concrete', name:'金額の具体化', max:5, desc:'「受給できたらいくらか」を相手の口から言わせる／一緒に計算しているか' },
+    { key:'talk_ratio', name:'聞く:話す比率', max:4, desc:'ヒアリングパートで相手が7割話しているか' }
+  ]},
+  { key:'presentation', name:'③ プレゼン・価値訴求', max:20, items:[
+    { key:'personalization', name:'個別化', max:8, desc:'ヒアリング内容を引用して「あなたの場合は〜」で説明しているか。定型説明の読み上げになっていないか' },
+    { key:'simulation', name:'受給額シミュレーション', max:6, desc:'具体的な金額イメージを提示できているか' },
+    { key:'cost_benefit', name:'費用対効果の翻訳', max:6, desc:'「サポート費用○円 vs 受給見込み○円」の比較を明示しているか' }
+  ]},
+  { key:'objection', name:'④ 不安解消・切り返し', max:15, items:[
+    { key:'preempt', name:'懸念の先回り', max:8, desc:'「会社にバレないか」「本当にもらえるのか」「自分でもできるのでは」の3大懸念に、聞かれる前または聞かれた直後に的確に返せているか' },
+    { key:'reframe', name:'切り返しの質', max:4, desc:'否定から入らず「おっしゃる通りです、その上で〜」型で受けているか' },
+    { key:'silence_tolerance', name:'沈黙耐性', max:3, desc:'相手が考えている時に喋りすぎて崩していないか' }
+  ]},
+  { key:'closing', name:'⑤ クロージング', max:20, items:[
+    { key:'test_closing', name:'テストクロージング', max:5, desc:'本クロージング前に「ここまでで気になる点は？」を挟んでいるか' },
+    { key:'clear_decision', name:'明確な意思確認', max:7, desc:'「どうされますか」ではなく具体的な選択肢・次アクションで締めているか' },
+    { key:'followup_spec', name:'検討対応', max:5, desc:'「検討します」に対し、検討内容の特定（何を・誰と・いつまでに）ができているか' },
+    { key:'deadline_set', name:'期日設定', max:3, desc:'その場で次回接点（日時）を確定させているか' }
+  ]},
+  { key:'compliance', name:'⑥ コンプラ・期待値管理', max:10, note:'※減点方式', items:[
+    { key:'no_guarantee', name:'断定表現ゼロ', max:4, desc:'「必ず・絶対もらえる」等の断定表現ゼロか（違反1回ごとに大きく減点）' },
+    { key:'condition_disclosed', name:'個別条件の明示', max:3, desc:'受給は個別条件次第である旨を明示したか' },
+    { key:'no_overreach', name:'士業領域の非侵犯', max:3, desc:'社労士・弁護士領域に踏み込む説明をしていないか' }
+  ]}
+];
+const MAX_TOTAL = RUBRIC.reduce((a,c)=>a+c.max,0);
+
+/* =================== JSON Schema 生成 =================== */
+function buildSchema(){
+  const catProps = {}, catRequired = [];
+  RUBRIC.forEach(cat=>{
+    const itemProps = {}, itemRequired = [];
+    cat.items.forEach(it=>{
+      itemProps[it.key] = {
+        type:'object',
+        properties:{
+          score:{ type:'integer', description:`0〜${it.max}の整数。${it.max}が満点。` },
+          feedback:{ type:'string', description:'その点数をつけた根拠。文字起こし中の具体的な発言・場面を引用して1〜3文で説明する' },
+          timestamp:{ type:'string', description:'該当箇所の位置。文字起こしに[HH:MM:SS]等の時刻表記がある場合はその時刻を記入。無い場合は「冒頭」「ヒアリング中盤」「価格提示直後」等おおよその位置を日本語で記入する（空文字にしない）' },
+          improvement_example:{ type:'string', description:'翌日の商談からそのまま使える改善トーク例。実際のセリフとして1〜2文で書く' }
+        },
+        required:['score','feedback','timestamp','improvement_example'],
+        additionalProperties:false
+      };
+      itemRequired.push(it.key);
+    });
+    catProps[cat.key] = {
+      type:'object',
+      properties:{ ...itemProps, summary:{ type:'string', description:'このカテゴリ全体の総括コメント（1〜2文）' } },
+      required:[...itemRequired,'summary'],
+      additionalProperties:false
+    };
+    catRequired.push(cat.key);
+  });
+  return {
+    type:'object',
+    properties:{
+      categories:{ type:'object', properties:catProps, required:catRequired, additionalProperties:false },
+      correlation_note:{ type:'string', description:'②ヒアリング深度（特に金額の具体化・懸念の先回り）の弱さが⑤クロージングにどう影響したかの所見。この商談で顕著な関連が見られない場合はその旨を書く' },
+      overall_feedback:{ type:'string', description:'総評。改善優先度が最も高い1点を明示する（抽象的な「ヒアリングが浅い」で終わらせない）' },
+      compliance_alert:{ type:'boolean', description:'⑥のいずれかの項目で明確な違反（断定表現・士業領域侵犯等）があった場合はtrue' }
+    },
+    required:['categories','correlation_note','overall_feedback','compliance_alert'],
+    additionalProperties:false
+  };
+}
+
+/* Claude用JSON Schema(additionalProperties等)をGemini responseSchema形式(type大文字・OpenAPIサブセット)に変換 */
+function toGeminiSchema(node){
+  if(!node || typeof node !== 'object') return node;
+  const typeMap = { object:'OBJECT', string:'STRING', integer:'INTEGER', boolean:'BOOLEAN', number:'NUMBER', array:'ARRAY' };
+  const out = {};
+  if(node.type) out.type = typeMap[node.type] || node.type;
+  if(node.description) out.description = node.description;
+  if(node.required) out.required = node.required;
+  if(node.properties){
+    out.properties = {};
+    Object.entries(node.properties).forEach(([k,v])=>{ out.properties[k] = toGeminiSchema(v); });
+  }
+  if(node.items) out.items = toGeminiSchema(node.items);
+  return out;
+}
+
+/* =================== システムプロンプト生成 =================== */
+function buildSystemPrompt(){
+  let rubricText = '';
+  RUBRIC.forEach(cat=>{
+    rubricText += `\n【${cat.name}（${cat.max}点）${cat.note?cat.note:''}】\n`;
+    cat.items.forEach(it=>{
+      rubricText += `- ${it.name}（${it.max}点）：${it.desc}\n`;
+    });
+  });
+  return `あなたは失業保険・給付金の「申請サポート」サービス『退職スマイル』（運営：株式会社さすが）の商談レビュー専門家です。
+商談内（着席〜クロージング）の文字起こしを読み、以下のルーブリックに従って100点満点で採点します。
+
+# 前提知識
+・商材は「退職代行」ではなく「申請サポート」。断定表現（必ず・絶対もらえる 等）はコンプライアンス違反。
+・受給額は個別の雇用保険加入期間・退職理由・傷病の有無等の個別条件次第であり、確約はできない。
+・社労士・弁護士領域（法的助言、書類の代理作成等）に営業担当が踏み込むのはNG。
+
+# 採点ルーブリック（100点満点）
+${rubricText}
+# 採点ルール
+1. 各項目は「何を見るか」の基準に照らし、文字起こし中の具体的な発言・やり取りを根拠にスコアを決める。抽象的な印象だけで採点しない。
+2. feedbackは必ず文字起こしの具体的な場面・発言を引用または要約して書く。「ヒアリングが浅い」のような一般論で終わらせず、「加入期間は確認したが、退職後の生活不安に触れておらず〜」のように具体的に書く。
+3. timestampは、文字起こしに時刻表記があればその時刻を、無ければおおよその位置（冒頭／ヒアリング中盤／価格提示直後 等）を日本語で記入する。
+4. improvement_exampleは、翌日の商談からそのまま使える具体的なトークのセリフを書く。一般的なアドバイスではなくセリフ形式にする。
+5. ⑥コンプラ・期待値管理は減点方式。各項目は満点からスタートし、違反発言があれば大きく減点し、feedbackに違反の実際の発言を引用する。違反が無ければ満点でよい。
+6. correlation_noteでは、②ヒアリング深度（特に「金額の具体化」「懸念の先回り」）の浅さが、この商談の⑤クロージングでの停滞（検討します等）にどうつながったかを具体的に指摘する。明確な関連が無ければ「今回は関連が薄い」等と正直に書く。
+7. overall_feedbackは、この商談で最も改善優先度が高い1点に絞って具体的に書く。
+8. すべて日本語で出力する。指定されたJSON形式（スキーマ）に厳密に従う。`;
+}
+
+/* =================== VTT/SRT パーサー =================== */
+function parseSubtitle(text){
+  const lines = text.replace(/\r/g,'').split('\n');
+  const tsRe = /(\d{1,2}:\d{2}:\d{2})[.,]\d{1,3}\s*-->/;
+  let out = [], curTime = null, buf = [];
+  const flush = ()=>{
+    if(curTime && buf.length){
+      const t = buf.join(' ').replace(/<[^>]+>/g,'').trim();
+      if(t) out.push(`[${curTime}] ${t}`);
+    }
+    buf = [];
+  };
+  for(const line of lines){
+    const m = line.match(tsRe);
+    if(m){ flush(); curTime = m[1]; continue; }
+    if(/^\d+$/.test(line.trim())) continue; // srt index
+    if(/^WEBVTT/.test(line.trim())) continue;
+    if(line.trim()==='' ){ continue; }
+    buf.push(line.trim());
+  }
+  flush();
+  return out.join('\n');
+}
+
+/* =================== 状態管理・DOM helper =================== */
+const $ = id => document.getElementById(id);
+const HISTORY_KEY = 'ts_ai_score_history';
+const SETTINGS_KEY = 'ts_ai_score_settings';
+
+function loadSettings(){
+  try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}'); }catch(e){ return {}; }
+}
+function saveSettings(s){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+function loadHistory(){
+  try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch(e){ return []; }
+}
+function saveHistory(h){ localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }
+
+/* =================== タブ切替 =================== */
+document.querySelectorAll('nav.tabs button').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+    ['score','history','dash','settings'].forEach(t=>{
+      $('tab-'+t).classList.toggle('hideme', t!==b.dataset.tab);
+    });
+    if(b.dataset.tab==='history') renderHistoryTable();
+    if(b.dataset.tab==='dash') renderDashboard();
+  };
+});
+
+/* =================== 設定タブ =================== */
+function applyProviderVisibility(){
+  const p = $('s_provider').value;
+  $('providerCardGemini').classList.toggle('hideme', p!=='gemini');
+  $('providerCardClaude').classList.toggle('hideme', p!=='claude');
+}
+function initSettingsUI(){
+  const s = loadSettings();
+  $('s_provider').value = s.provider || 'gemini';
+  $('s_apikey').value = s.apiKey || '';
+  $('s_model').value = s.model || 'claude-opus-4-8';
+  $('s_effort').value = s.effort || 'high';
+  $('s_gemini_apikey').value = s.geminiApiKey || '';
+  $('s_gemini_model').value = s.geminiModel || 'gemini-2.5-flash';
+  applyProviderVisibility();
+}
+$('s_provider').addEventListener('change', applyProviderVisibility);
+$('btnSaveSettings').onclick = ()=>{
+  saveSettings({
+    provider: $('s_provider').value,
+    apiKey: $('s_apikey').value.trim(),
+    model: $('s_model').value,
+    effort: $('s_effort').value,
+    geminiApiKey: $('s_gemini_apikey').value.trim(),
+    geminiModel: $('s_gemini_model').value
+  });
+  $('btnSaveSettings').textContent = '保存しました ✓';
+  setTimeout(()=>{ $('btnSaveSettings').textContent='設定を保存'; },1500);
+};
+$('btnClearHistory').onclick = ()=>{
+  if(!confirm('履歴をすべて削除します。よろしいですか？')) return;
+  saveHistory([]);
+  renderHistoryTable(); renderDashboard();
+};
+
+/* =================== 文字起こし入力 =================== */
+$('transcript').addEventListener('input', ()=>{
+  const v = $('transcript').value;
+  $('charcount').textContent = v.length;
+  $('tsdetect').textContent = /\d{1,2}:\d{2}(:\d{2})?/.test(v) ? 'あり' : 'なし';
+});
+
+$('btnLoadFile').onclick = ()=> $('fileTranscript').click();
+$('fileTranscript').addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const text = await file.text();
+  const isSub = /\.(vtt|srt)$/i.test(file.name);
+  $('transcript').value = isSub ? parseSubtitle(text) : text;
+  $('transcript').dispatchEvent(new Event('input'));
+  e.target.value = '';
+});
+
+$('btnSample').onclick = ()=>{
+  $('transcript').value = `[00:00:05] 営業: 本日はお時間ありがとうございます。今日は30分ほどで、まず現状の確認、その後受給の可能性、最後に進め方の順でお話しさせてください。
+[00:00:40] 顧客: はい、お願いします。実は最近ちょっと体調が良くなくて…
+[00:01:10] 営業: そうなんですね、それはご心配ですね。いつ頃から体調崩されてますか？
+[00:05:20] 営業: では雇用保険の加入期間なんですが、今の会社にはどれくらいお勤めですか？
+[00:05:40] 顧客: 3年半くらいです。
+[00:12:00] 営業: ちなみに退職された場合、月々の生活費とかって何かイメージされてますか？
+[00:12:30] 顧客: うーん、あまり考えてないです…
+[00:25:00] 営業: サポート費用は33万円です。受給の見込み額と比べると十分メリットがあると思います。
+[00:25:30] 顧客: ちょっと高いですね…自分でもできそうな気がするんですが。
+[00:26:00] 営業: 皆さんそうおっしゃるんですが、実際は複雑で、、、大丈夫です、必ずもらえますので。
+[00:38:00] 営業: では、どうされますか？
+[00:38:10] 顧客: ちょっと検討します。
+[00:38:15] 営業: わかりました、また連絡しますね。`;
+  $('transcript').dispatchEvent(new Event('input'));
+};
+
+/* =================== 音声 → 自動文字起こし（フォールバック・Whisper WASM） =================== */
+let asrPipelinePromise = null;
+async function getAsrPipeline(model, onProgress){
+  const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/+esm');
+  return pipeline('automatic-speech-recognition', model, { progress_callback: onProgress });
+}
+
+$('btnLoadAudio').onclick = ()=> $('fileAudio').click();
+$('fileAudio').addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  e.target.value = '';
+  if(!confirm('録音・録画から自動で文字起こしします。ファイルによっては数分〜数十分かかります。続けますか？')) return;
+
+  $('asrProgress').classList.remove('hideme');
+  $('asrStatus').textContent = 'モデルを読み込んでいます…（初回のみ時間がかかります）';
+  $('asrBar').style.width = '5%';
+
+  try{
+    const model = 'Xenova/whisper-small';
+    const transcriber = await getAsrPipeline(model, (p)=>{
+      if(p.status==='progress' && p.total){
+        const pct = Math.round((p.loaded/p.total)*100);
+        $('asrBar').style.width = pct+'%';
+        $('asrStatus').textContent = `モデルダウンロード中… ${pct}%（${p.file||''}）`;
+      }
+    });
+
+    $('asrStatus').textContent = '音声を解析しています…（長い録音は時間がかかります）';
+    $('asrBar').style.width = '60%';
+
+    const url = URL.createObjectURL(file);
+    const output = await transcriber(url, {
+      language: 'japanese',
+      task: 'transcribe',
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true
+    });
+    URL.revokeObjectURL(url);
+
+    $('asrBar').style.width = '100%';
+    $('asrStatus').textContent = '完了しました。文字起こし欄に反映します。';
+
+    let text = '';
+    if(output && Array.isArray(output.chunks)){
+      output.chunks.forEach(c=>{
+        const t0 = c.timestamp && c.timestamp[0]!=null ? formatSec(c.timestamp[0]) : null;
+        text += (t0 ? `[${t0}] ` : '') + (c.text||'').trim() + '\n';
+      });
+    } else {
+      text = (output && output.text) || '';
+    }
+    const existing = $('transcript').value.trim();
+    $('transcript').value = existing ? existing + '\n' + text : text;
+    $('transcript').dispatchEvent(new Event('input'));
+
+    setTimeout(()=>{ $('asrProgress').classList.add('hideme'); }, 2500);
+  }catch(err){
+    console.error(err);
+    $('asrStatus').textContent = 'エラーが発生しました: ' + (err.message||err);
+  }
+});
+function formatSec(s){
+  s = Math.max(0, Math.floor(s));
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const sec = String(s%60).padStart(2,'0');
+  return `${h}:${m}:${sec}`;
+}
+
+/* =================== AI採点 呼び出し（プロバイダ分岐） =================== */
+async function scoreTranscript(transcript){
+  const settings = loadSettings();
+  const provider = settings.provider || 'gemini';
+  const userContent = `以下は商談（着席〜クロージング）の文字起こしです。ルーブリックに従って採点してください。\n\n---\n${transcript}\n---`;
+  if(provider === 'gemini'){
+    return scoreWithGemini(settings, userContent);
+  }
+  return scoreWithClaude(settings, userContent);
+}
+
+async function scoreWithClaude(settings, userContent){
+  if(!settings.apiKey){
+    throw new Error('APIキーが未設定です。「設定」タブでClaude APIキーを入力してください。');
+  }
+  const schema = buildSchema();
+  const system = buildSystemPrompt();
+  const body = {
+    model: settings.model || 'claude-opus-4-8',
+    max_tokens: 12000,
+    thinking: { type:'adaptive' },
+    output_config: { effort: settings.effort || 'high', format: { type:'json_schema', schema } },
+    system: system,
+    messages: [{ role:'user', content: userContent }]
+  };
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': settings.apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if(!resp.ok){
+    const msg = (data && data.error && data.error.message) || JSON.stringify(data);
+    throw new Error(`Claude APIエラー(${resp.status}): ${msg}`);
+  }
+  if(data.stop_reason === 'refusal'){
+    throw new Error('モデルが応答を拒否しました。内容を確認するか、再度お試しください。');
+  }
+  const textBlock = (data.content||[]).find(b=>b.type==='text');
+  if(!textBlock) throw new Error('AIからの応答にテキストが含まれていませんでした。');
+  return JSON.parse(textBlock.text);
+}
+
+async function scoreWithGemini(settings, userContent){
+  if(!settings.geminiApiKey){
+    throw new Error('APIキーが未設定です。「設定」タブでGemini APIキーを入力してください（aistudio.google.com/apikey で無料発行できます）。');
+  }
+  const schema = toGeminiSchema(buildSchema());
+  const system = buildSystemPrompt();
+  const model = settings.geminiModel || 'gemini-2.5-flash';
+  const body = {
+    systemInstruction: { parts:[{ text: system }] },
+    contents: [{ role:'user', parts:[{ text: userContent }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      maxOutputTokens: 8192,
+      temperature: 0.3
+    }
+  };
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(settings.geminiApiKey)}`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if(!resp.ok){
+    const msg = (data && data.error && data.error.message) || JSON.stringify(data);
+    throw new Error(`Gemini APIエラー(${resp.status}): ${msg}。無料枠のレート制限（1分あたりのリクエスト数上限）に達している可能性があります。少し時間を置いて再試行してください。`);
+  }
+  if(data.promptFeedback && data.promptFeedback.blockReason){
+    throw new Error(`Geminiが安全フィルタでブロックしました（理由: ${data.promptFeedback.blockReason}）。`);
+  }
+  const cand = (data.candidates||[])[0];
+  if(!cand){
+    throw new Error('Geminiからの応答が空でした。');
+  }
+  if(cand.finishReason === 'MAX_TOKENS'){
+    throw new Error('出力が上限に達し途中で切れました。文字起こしを短くするか、モデルを変更して再試行してください。');
+  }
+  const text = cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+  if(!text) throw new Error('Geminiからの応答にテキストが含まれていませんでした。');
+  return JSON.parse(text);
+}
+
+$('btnScore').onclick = async ()=>{
+  const transcript = $('transcript').value.trim();
+  if(!transcript){ alert('文字起こしを入力してください。'); return; }
+  $('scoreError').classList.add('hideme');
+  $('scoreLoading').classList.remove('hideme');
+  $('btnScore').disabled = true;
+  try{
+    const result = await scoreTranscript(transcript);
+    renderResult(result, {
+      rep: $('f_rep').value.trim(),
+      customer: $('f_customer').value.trim(),
+      date: $('f_date').value,
+      result: $('f_result').value,
+      transcript
+    });
+  }catch(err){
+    console.error(err);
+    $('scoreError').textContent = err.message || String(err);
+    $('scoreError').classList.remove('hideme');
+  }finally{
+    $('scoreLoading').classList.add('hideme');
+    $('btnScore').disabled = false;
+  }
+};
+
+/* =================== 採点結果の描画 =================== */
+function catScore(cat, aiCat){
+  return cat.items.reduce((a,it)=> a + (Number(aiCat[it.key] && aiCat[it.key].score) || 0), 0);
+}
+function totalScore(aiCategories){
+  return RUBRIC.reduce((a,cat)=> a + catScore(cat, aiCategories[cat.key]||{}), 0);
+}
+
+function renderResult(ai, meta, savedId){
+  const cats = ai.categories || {};
+  const total = totalScore(cats);
+
+  let html = `<div class="card">
+    <h2>採点結果</h2>
+    <div class="scoreBig">
+      <div class="num">${total}<small> / ${MAX_TOTAL}点</small></div>
+      <div class="bars">`;
+  RUBRIC.forEach(cat=>{
+    const sc = catScore(cat, cats[cat.key]||{});
+    const pct = Math.round((sc/cat.max)*100);
+    html += `<div class="catbar"><div class="lbl">${cat.name}</div><div class="track"><div style="width:${pct}%"></div></div><div class="val">${sc}/${cat.max}</div></div>`;
+  });
+  html += `</div></div>`;
+  if(ai.compliance_alert){
+    html += `<div class="alertBox">⚠️ コンプライアンス違反の疑いがあります。⑥のフィードバックを必ず確認してください。</div>`;
+  }
+  html += `</div>`;
+
+  RUBRIC.forEach((cat,ci)=>{
+    const aiCat = cats[cat.key] || {};
+    const sc = catScore(cat, aiCat);
+    html += `<div class="catSection${ci===1?' open':''}" data-idx="${ci}">
+      <div class="head"><span class="chev">▶</span><span class="name">${cat.name}</span><span class="sc">${sc}/${cat.max}</span></div>
+      <div class="body">
+        ${aiCat.summary?`<div class="catSummary">${escapeHtml(aiCat.summary)}</div>`:''}`;
+    cat.items.forEach(it=>{
+      const d = aiCat[it.key] || {};
+      const zero = (Number(d.score)||0) === 0;
+      html += `<div class="scoreItem">
+        <div class="top"><span class="iname">${it.name}</span><span class="isc${zero?' zero':''}">${d.score ?? '-'}/${it.max}</span></div>
+        <div class="fb">${escapeHtml(d.feedback||'')}</div>
+        ${d.timestamp?`<div class="ts">🕒 ${escapeHtml(d.timestamp)}</div>`:''}
+        ${d.improvement_example?`<div class="impr"><b>改善トーク例：</b>${escapeHtml(d.improvement_example)}</div>`:''}
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  html += `<div class="noteBox"><h3>②×⑤ 相関メモ</h3>${escapeHtml(ai.correlation_note||'')}</div>`;
+  html += `<div class="noteBox"><h3>総評</h3>${escapeHtml(ai.overall_feedback||'')}</div>`;
+
+  if(!savedId){
+    html += `<div class="card no-print" style="text-align:center"><button class="btn" id="btnSaveResult" style="padding:12px 24px">💾 履歴に保存</button></div>`;
+  }
+
+  $('resultWrap').innerHTML = html;
+  $('resultWrap').classList.remove('hideme');
+
+  $('resultWrap').querySelectorAll('.catSection .head').forEach(h=>{
+    h.onclick = ()=> h.parentElement.classList.toggle('open');
+  });
+
+  const saveBtn = $('btnSaveResult');
+  if(saveBtn){
+    saveBtn.onclick = ()=>{
+      const hist = loadHistory();
+      hist.unshift({
+        id: Date.now(),
+        date: meta.date || new Date().toISOString().slice(0,10),
+        rep: meta.rep || '(未記入)',
+        customer: meta.customer || '(匿名)',
+        result: meta.result || '',
+        total,
+        catScores: Object.fromEntries(RUBRIC.map(c=>[c.key, catScore(c, cats[c.key]||{})])),
+        ai,
+        transcript: meta.transcript
+      });
+      saveHistory(hist);
+      saveBtn.textContent = '保存しました ✓';
+      saveBtn.disabled = true;
+    };
+  }
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =================== 履歴タブ =================== */
+function renderHistoryTable(){
+  const hist = loadHistory();
+  $('historyEmpty').classList.toggle('hideme', hist.length>0);
+  $('historyTable').classList.toggle('hideme', hist.length===0);
+  $('historyDetail').innerHTML = '';
+  const body = $('historyBody');
+  body.innerHTML = '';
+  hist.forEach(h=>{
+    const tr = document.createElement('tr');
+    const tagCls = h.result==='成約'?'win':(h.result==='失注'||h.result==='成約→CO')?'lose':'pend';
+    tr.innerHTML = `<td>${h.date||'-'}</td><td>${escapeHtml(h.rep)}</td><td>${escapeHtml(h.customer)}</td>
+      <td><span class="resultTag ${tagCls}">${h.result||'未記入'}</span></td>
+      <td class="num">${h.total}/${MAX_TOTAL}</td>
+      <td class="num">${(h.catScores&&h.catScores.hearing)||0}/25</td>
+      <td class="num">${(h.catScores&&h.catScores.closing)||0}/20</td>
+      <td><button class="btn ghost small" data-id="${h.id}">開く</button> <button class="btn danger small" data-del="${h.id}">削除</button></td>`;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('button[data-id]').forEach(b=>{
+    b.onclick = ()=>{
+      const item = hist.find(x=>x.id===Number(b.dataset.id));
+      if(!item) return;
+      const tmp = $('resultWrap');
+      const backup = tmp.innerHTML;
+      renderResultInto('historyDetail', item.ai, item);
+    };
+  });
+  body.querySelectorAll('button[data-del]').forEach(b=>{
+    b.onclick = ()=>{
+      if(!confirm('この履歴を削除しますか？')) return;
+      const h2 = loadHistory().filter(x=>x.id!==Number(b.dataset.del));
+      saveHistory(h2);
+      renderHistoryTable(); renderDashboard();
+    };
+  });
+}
+function renderResultInto(containerId, ai, meta){
+  const container = $(containerId);
+  const cats = ai.categories || {};
+  const total = totalScore(cats);
+  let html = `<div class="card"><h2>${meta.date||''} ${escapeHtml(meta.rep||'')} / ${escapeHtml(meta.customer||'')}</h2>
+    <div class="scoreBig"><div class="num">${total}<small> / ${MAX_TOTAL}点</small></div><div class="bars">`;
+  RUBRIC.forEach(cat=>{
+    const sc = catScore(cat, cats[cat.key]||{});
+    const pct = Math.round((sc/cat.max)*100);
+    html += `<div class="catbar"><div class="lbl">${cat.name}</div><div class="track"><div style="width:${pct}%"></div></div><div class="val">${sc}/${cat.max}</div></div>`;
+  });
+  html += `</div></div></div>`;
+  RUBRIC.forEach(cat=>{
+    const aiCat = cats[cat.key] || {};
+    const sc = catScore(cat, aiCat);
+    html += `<div class="catSection" data-idx="d"><div class="head"><span class="chev">▶</span><span class="name">${cat.name}</span><span class="sc">${sc}/${cat.max}</span></div><div class="body">`;
+    if(aiCat.summary) html += `<div class="catSummary">${escapeHtml(aiCat.summary)}</div>`;
+    cat.items.forEach(it=>{
+      const d = aiCat[it.key] || {};
+      html += `<div class="scoreItem"><div class="top"><span class="iname">${it.name}</span><span class="isc">${d.score ?? '-'}/${it.max}</span></div>
+        <div class="fb">${escapeHtml(d.feedback||'')}</div>
+        ${d.timestamp?`<div class="ts">🕒 ${escapeHtml(d.timestamp)}</div>`:''}
+        ${d.improvement_example?`<div class="impr"><b>改善トーク例：</b>${escapeHtml(d.improvement_example)}</div>`:''}</div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `<div class="noteBox"><h3>②×⑤ 相関メモ</h3>${escapeHtml(ai.correlation_note||'')}</div>`;
+  html += `<div class="noteBox"><h3>総評</h3>${escapeHtml(ai.overall_feedback||'')}</div>`;
+  container.innerHTML = html;
+  container.querySelectorAll('.catSection .head').forEach(h=>{ h.onclick = ()=> h.parentElement.classList.toggle('open'); });
+}
+
+/* =================== ダッシュボード =================== */
+function renderDashboard(){
+  const hist = loadHistory();
+  // ②ヒアリング × 成約率
+  const wonSet = new Set(['成約','成約→CO']);
+  const closedHist = hist.filter(h=>h.result && h.result!=='対象外');
+  if(closedHist.length < 3){
+    $('dashHearing').innerHTML = '履歴が3件以上たまるとクロス集計が表示されます。';
+  }else{
+    const buckets = [ {lo:0,hi:12,label:'0〜12（低）'}, {lo:13,hi:19,label:'13〜19（中）'}, {lo:20,hi:25,label:'20〜25（高）'} ];
+    let rows = '';
+    buckets.forEach(b=>{
+      const inBucket = closedHist.filter(h=>{ const s=(h.catScores&&h.catScores.hearing)||0; return s>=b.lo && s<=b.hi; });
+      const won = inBucket.filter(h=>wonSet.has(h.result)).length;
+      const rate = inBucket.length ? Math.round((won/inBucket.length)*100) : 0;
+      rows += `<div class="catbar" style="margin-bottom:8px"><div class="lbl">②${b.label}</div><div class="track"><div style="width:${rate}%"></div></div><div class="val">${rate}%（${inBucket.length}件）</div></div>`;
+    });
+    $('dashHearing').innerHTML = rows;
+  }
+  // 営業担当別
+  if(hist.length===0){
+    $('dashRep').textContent = '履歴がありません。';
+  }else{
+    const byRep = {};
+    hist.forEach(h=>{ (byRep[h.rep]=byRep[h.rep]||[]).push(h.total); });
+    let rows = '<table><thead><tr><th>営業担当</th><th class="num">件数</th><th class="num">平均スコア</th></tr></thead><tbody>';
+    Object.entries(byRep).sort((a,b)=>b[1].length-a[1].length).forEach(([rep, arr])=>{
+      const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      rows += `<tr><td>${escapeHtml(rep)}</td><td class="num">${arr.length}</td><td class="num">${avg}/${MAX_TOTAL}</td></tr>`;
+    });
+    rows += '</tbody></table>';
+    $('dashRep').innerHTML = rows;
+  }
+  // カテゴリ別平均
+  if(hist.length===0){
+    $('dashCat').textContent = '履歴がありません。';
+  }else{
+    let rows = '';
+    RUBRIC.forEach(cat=>{
+      const arr = hist.map(h=> (h.catScores&&h.catScores[cat.key])||0 );
+      const avg = arr.reduce((a,b)=>a+b,0)/arr.length;
+      const pct = Math.round((avg/cat.max)*100);
+      rows += `<div class="catbar" style="margin-bottom:8px"><div class="lbl">${cat.name}</div><div class="track"><div style="width:${pct}%"></div></div><div class="val">${avg.toFixed(1)}/${cat.max}</div></div>`;
+    });
+    $('dashCat').innerHTML = rows;
+  }
+}
+
+/* =================== 初期化 =================== */
+$('f_date').value = new Date().toISOString().slice(0,10);
+initSettingsUI();
+renderHistoryTable();
+</script>
+</body>
+</html>
