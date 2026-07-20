@@ -211,8 +211,8 @@
       <h2>採点AIの選択</h2>
       <p class="sub">Claude（高精度・従量課金）／ Gemini（Google AI Studioの無料枠で利用可）から選べます。</p>
       <select id="s_provider">
-        <option value="gemini">Gemini（無料枠あり）</option>
         <option value="claude">Claude（高精度・有料）</option>
+        <option value="gemini">Gemini（無料枠あり）</option>
       </select>
     </div>
 
@@ -460,7 +460,7 @@ function applyProviderVisibility(){
 }
 function initSettingsUI(){
   const s = loadSettings();
-  $('s_provider').value = s.provider || 'gemini';
+  $('s_provider').value = s.provider || 'claude';
   $('s_apikey').value = s.apiKey || '';
   $('s_model').value = s.model || 'claude-opus-4-8';
   $('s_effort').value = s.effort || 'high';
@@ -594,7 +594,7 @@ function formatSec(s){
 /* =================== AI採点 呼び出し（プロバイダ分岐） =================== */
 async function scoreTranscript(transcript){
   const settings = loadSettings();
-  const provider = settings.provider || 'gemini';
+  const provider = settings.provider || 'claude';
   const userContent = `以下は商談（着席〜クロージング）の文字起こしです。ルーブリックに従って採点してください。\n\n---\n${transcript}\n---`;
   if(provider === 'gemini'){
     return scoreWithGemini(settings, userContent);
