@@ -149,8 +149,8 @@
     <div class="card">
       <h2>商談の文字起こし</h2>
       <p class="sub">Plaudの文字起こしをコピー貼り付け／Zoomの文字起こし(.vtt/.srt/.txt)をアップロード／文字起こしが無い録音・録画は下の音声アップロードで自動文字起こし（時間がかかります）。</p>
-      <textarea id="transcript" placeholder="ここに文字起こしを貼り付け（[00:12:34] のようなタイムスタンプがあればそのまま含めてOK）"></textarea>
-      <div class="charcount"><span id="charcount">0</span> 文字 / タイムスタンプ検出: <span id="tsdetect">-</span></div>
+      <textarea id="transcript" maxlength="30000" placeholder="ここに文字起こしを貼り付け（[00:12:34] のようなタイムスタンプがあればそのまま含めてOK）"></textarea>
+      <div class="charcount"><span id="charcount">0</span> / 30,000 文字 / タイムスタンプ検出: <span id="tsdetect">-</span></div>
       <div class="filerow">
         <button class="btn ghost small" id="btnLoadFile">📄 文字起こしファイルを読み込む(.txt/.vtt/.srt)</button>
         <input type="file" id="fileTranscript" accept=".txt,.vtt,.srt">
@@ -523,9 +523,24 @@ $('btnClearHistory').onclick = ()=>{
 };
 
 /* =================== 文字起こし入力 =================== */
+const MAX_TRANSCRIPT_CHARS = 30000;
+
+/* 文字起こしをtextareaへ反映する共通処理。maxlength属性はユーザーの直接入力/貼り付けにしか効かないため、
+   ファイル読込・サンプル・音声文字起こし結果などプログラムから.valueを差し込む箇所は全てここを通す。 */
+function setTranscriptText(text, { append = false } = {}){
+  const base = append ? $('transcript').value.trim() : '';
+  let combined = base ? base + '\n' + text : text;
+  const truncated = combined.length > MAX_TRANSCRIPT_CHARS;
+  if(truncated) combined = combined.slice(0, MAX_TRANSCRIPT_CHARS);
+  $('transcript').value = combined;
+  $('transcript').dispatchEvent(new Event('input'));
+  if(truncated) alert(`文字起こしが上限（30,000文字）を超えたため、超過分を切り捨てました。長い商談は前半・後半に分けて採点することをおすすめします。`);
+}
+
 $('transcript').addEventListener('input', ()=>{
   const v = $('transcript').value;
   $('charcount').textContent = v.length;
+  $('charcount').style.color = v.length >= MAX_TRANSCRIPT_CHARS ? 'var(--bad)' : '';
   $('tsdetect').textContent = /\d{1,2}:\d{2}(:\d{2})?/.test(v) ? 'あり' : 'なし';
 });
 
@@ -534,13 +549,12 @@ $('fileTranscript').addEventListener('change', async (e)=>{
   const file = e.target.files[0]; if(!file) return;
   const text = await file.text();
   const isSub = /\.(vtt|srt)$/i.test(file.name);
-  $('transcript').value = isSub ? parseSubtitle(text) : text;
-  $('transcript').dispatchEvent(new Event('input'));
+  setTranscriptText(isSub ? parseSubtitle(text) : text);
   e.target.value = '';
 });
 
 $('btnSample').onclick = ()=>{
-  $('transcript').value = `[00:00:05] 営業: 本日はお時間ありがとうございます。今日は30分ほどで、まず現状の確認、その後受給の可能性、最後に進め方の順でお話しさせてください。
+  setTranscriptText(`[00:00:05] 営業: 本日はお時間ありがとうございます。今日は30分ほどで、まず現状の確認、その後受給の可能性、最後に進め方の順でお話しさせてください。
 [00:00:40] 顧客: はい、お願いします。実は最近ちょっと体調が良くなくて…
 [00:01:10] 営業: そうなんですね、それはご心配ですね。いつ頃から体調崩されてますか？
 [00:05:20] 営業: では雇用保険の加入期間なんですが、今の会社にはどれくらいお勤めですか？
@@ -552,8 +566,7 @@ $('btnSample').onclick = ()=>{
 [00:26:00] 営業: 皆さんそうおっしゃるんですが、実際は複雑で、、、大丈夫です、必ずもらえますので。
 [00:38:00] 営業: では、どうされますか？
 [00:38:10] 顧客: ちょっと検討します。
-[00:38:15] 営業: わかりました、また連絡しますね。`;
-  $('transcript').dispatchEvent(new Event('input'));
+[00:38:15] 営業: わかりました、また連絡しますね。`);
 };
 
 /* =================== 音声 → 自動文字起こし（フォールバック・Whisper WASM） =================== */
@@ -608,9 +621,7 @@ $('fileAudio').addEventListener('change', async (e)=>{
     } else {
       text = (output && output.text) || '';
     }
-    const existing = $('transcript').value.trim();
-    $('transcript').value = existing ? existing + '\n' + text : text;
-    $('transcript').dispatchEvent(new Event('input'));
+    setTranscriptText(text, { append: true });
 
     setTimeout(()=>{ $('asrProgress').classList.add('hideme'); }, 2500);
   }catch(err){
