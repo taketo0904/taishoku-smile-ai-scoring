@@ -302,43 +302,76 @@ const RUBRIC = [
 ];
 const MAX_TOTAL = RUBRIC.reduce((a,c)=>a+c.max,0);
 
+/* 項目キー⇔カテゴリキーの相互参照（正はRUBRIC） */
+const ITEM_KEYS = RUBRIC.flatMap(c=>c.items.map(i=>i.key));
+const CATEGORY_KEYS = RUBRIC.map(c=>c.key);
+const ITEM_TO_CATEGORY = {};
+RUBRIC.forEach(cat=> cat.items.forEach(it=>{ ITEM_TO_CATEGORY[it.key] = cat.key; }));
+
 /* =================== JSON Schema 生成 =================== */
+/* Claudeの構造化出力は項目数が多いと「compiled grammar too large」で400になるため、
+   カテゴリ×項目ごとに個別の名前付きフィールドを作らず、同一形状のitemを配列で繰り返す形にする。 */
 function buildSchema(){
-  const catProps = {}, catRequired = [];
-  RUBRIC.forEach(cat=>{
-    const itemProps = {}, itemRequired = [];
-    cat.items.forEach(it=>{
-      itemProps[it.key] = {
-        type:'object',
-        properties:{
-          score:{ type:'integer', description:`0〜${it.max}の整数。${it.max}が満点。` },
-          feedback:{ type:'string', description:'その点数をつけた根拠。文字起こし中の具体的な発言・場面を引用して1〜3文で説明する' },
-          timestamp:{ type:'string', description:'該当箇所の位置。文字起こしに[HH:MM:SS]等の時刻表記がある場合はその時刻を記入。無い場合は「冒頭」「ヒアリング中盤」「価格提示直後」等おおよその位置を日本語で記入する（空文字にしない）' },
-          improvement_example:{ type:'string', description:'翌日の商談からそのまま使える改善トーク例。実際のセリフとして1〜2文で書く' }
-        },
-        required:['score','feedback','timestamp','improvement_example'],
-        additionalProperties:false
-      };
-      itemRequired.push(it.key);
-    });
-    catProps[cat.key] = {
-      type:'object',
-      properties:{ ...itemProps, summary:{ type:'string', description:'このカテゴリ全体の総括コメント（1〜2文）' } },
-      required:[...itemRequired,'summary'],
-      additionalProperties:false
-    };
-    catRequired.push(cat.key);
-  });
   return {
     type:'object',
     properties:{
-      categories:{ type:'object', properties:catProps, required:catRequired, additionalProperties:false },
+      items:{
+        type:'array',
+        description:`採点項目ごとの結果。下記item_keyの${ITEM_KEYS.length}種類すべてについて、1件ずつ過不足なく出力する。`,
+        items:{
+          type:'object',
+          properties:{
+            item_key:{ type:'string', enum: ITEM_KEYS, description:'採点項目のキー' },
+            score:{ type:'integer', description:'その項目の得点。0以上、その項目の満点以下の整数。' },
+            feedback:{ type:'string', description:'得点の根拠。文字起こし中の具体的な発言・場面を引用して1〜3文で説明する' },
+            timestamp:{ type:'string', description:'該当箇所の位置。[HH:MM:SS]等の時刻表記が文字起こしにあればその時刻、無ければ「冒頭」「ヒアリング中盤」等おおよその位置を日本語で記入する（空文字にしない）' },
+            improvement_example:{ type:'string', description:'翌日の商談からそのまま使える改善トーク例。実際のセリフとして1〜2文で書く' }
+          },
+          required:['item_key','score','feedback','timestamp','improvement_example'],
+          additionalProperties:false
+        }
+      },
+      category_summaries:{
+        type:'array',
+        description:`カテゴリごとの総括コメント。下記category_keyの${CATEGORY_KEYS.length}種類すべてについて、1件ずつ過不足なく出力する。`,
+        items:{
+          type:'object',
+          properties:{
+            category_key:{ type:'string', enum: CATEGORY_KEYS, description:'カテゴリのキー' },
+            summary:{ type:'string', description:'このカテゴリ全体の総括コメント（1〜2文）' }
+          },
+          required:['category_key','summary'],
+          additionalProperties:false
+        }
+      },
       correlation_note:{ type:'string', description:'②ヒアリング深度（特に金額の具体化・懸念の先回り）の弱さが⑤クロージングにどう影響したかの所見。この商談で顕著な関連が見られない場合はその旨を書く' },
       overall_feedback:{ type:'string', description:'総評。改善優先度が最も高い1点を明示する（抽象的な「ヒアリングが浅い」で終わらせない）' },
       compliance_alert:{ type:'boolean', description:'⑥のいずれかの項目で明確な違反（断定表現・士業領域侵犯等）があった場合はtrue' }
     },
-    required:['categories','correlation_note','overall_feedback','compliance_alert'],
+    required:['items','category_summaries','correlation_note','overall_feedback','compliance_alert'],
     additionalProperties:false
+  };
+}
+
+/* AIが返すフラットな配列形式(items/category_summaries)を、画面描画が期待するcategories.{catKey}.{itemKey}のネスト形に組み立て直す */
+function normalizeAiResult(flat){
+  const categories = {};
+  RUBRIC.forEach(cat=>{ categories[cat.key] = {}; });
+  (flat.items||[]).forEach(it=>{
+    const catKey = ITEM_TO_CATEGORY[it.item_key];
+    if(!catKey) return;
+    categories[catKey][it.item_key] = {
+      score: it.score, feedback: it.feedback, timestamp: it.timestamp, improvement_example: it.improvement_example
+    };
+  });
+  (flat.category_summaries||[]).forEach(cs=>{
+    if(categories[cs.category_key]) categories[cs.category_key].summary = cs.summary;
+  });
+  return {
+    categories,
+    correlation_note: flat.correlation_note,
+    overall_feedback: flat.overall_feedback,
+    compliance_alert: flat.compliance_alert
   };
 }
 
@@ -350,6 +383,7 @@ function toGeminiSchema(node){
   if(node.type) out.type = typeMap[node.type] || node.type;
   if(node.description) out.description = node.description;
   if(node.required) out.required = node.required;
+  if(node.enum) out.enum = node.enum;
   if(node.properties){
     out.properties = {};
     Object.entries(node.properties).forEach(([k,v])=>{ out.properties[k] = toGeminiSchema(v); });
@@ -362,9 +396,9 @@ function toGeminiSchema(node){
 function buildSystemPrompt(){
   let rubricText = '';
   RUBRIC.forEach(cat=>{
-    rubricText += `\n【${cat.name}（${cat.max}点）${cat.note?cat.note:''}】\n`;
+    rubricText += `\n【${cat.name}（${cat.max}点）${cat.note?cat.note:''} / category_key: "${cat.key}"】\n`;
     cat.items.forEach(it=>{
-      rubricText += `- ${it.name}（${it.max}点）：${it.desc}\n`;
+      rubricText += `- ${it.name}（${it.max}点） item_key: "${it.key}" ：${it.desc}\n`;
     });
   });
   return `あなたは失業保険・給付金の「申請サポート」サービス『退職スマイル』（運営：株式会社さすが）の商談レビュー専門家です。
@@ -398,7 +432,8 @@ ${rubricText}
 6. correlation_noteでは、②ヒアリング深度（特に「金額の具体化」「懸念の先回り」）の浅さが、この商談の⑤クロージングでの停滞（検討します等）にどうつながったかを具体的に指摘する。明確な関連が無ければ「今回は関連が薄い」等と正直に書く。
 7. overall_feedbackは、この商談で最も改善優先度が高い1点に絞って具体的に書く。
 8. 各項目のscoreを決める前に、feedback内でまず「基準に対して何が欠けているか／何が甘いか」を先に特定してから減点する。欠点が見つからない場合のみ満点にする。
-9. すべて日本語で出力する。指定されたJSON形式（スキーマ）に厳密に従う。`;
+9. items配列には、上記ルーブリックのitem_key全${ITEM_KEYS.length}種類（${ITEM_KEYS.join('、')}）を1件ずつ、過不足なく出力する。category_summaries配列には、category_key全${CATEGORY_KEYS.length}種類（${CATEGORY_KEYS.join('、')}）を1件ずつ、過不足なく出力する。item_key・category_keyは必ず上記の英字キーをそのまま使う（日本語名やその他の値にしない）。
+10. すべて日本語で出力する（item_key・category_keyの値のみ英字キーのまま）。指定されたJSON形式（スキーマ）に厳密に従う。`;
 }
 
 /* =================== VTT/SRT パーサー =================== */
@@ -596,10 +631,10 @@ async function scoreTranscript(transcript){
   const settings = loadSettings();
   const provider = settings.provider || 'claude';
   const userContent = `以下は商談（着席〜クロージング）の文字起こしです。ルーブリックに従って採点してください。\n\n---\n${transcript}\n---`;
-  if(provider === 'gemini'){
-    return scoreWithGemini(settings, userContent);
-  }
-  return scoreWithClaude(settings, userContent);
+  const flat = provider === 'gemini'
+    ? await scoreWithGemini(settings, userContent)
+    : await scoreWithClaude(settings, userContent);
+  return normalizeAiResult(flat);
 }
 
 async function scoreWithClaude(settings, userContent){
